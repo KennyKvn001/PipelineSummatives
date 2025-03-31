@@ -11,7 +11,6 @@ from .db import (
 from app.schema import StudentInput, PredictionOutput
 from app.scripts.model import DropoutModel
 import pandas as pd
-import io
 import logging
 from app.config import settings
 

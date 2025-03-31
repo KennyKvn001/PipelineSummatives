@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     MONGO_DB: str = "student_dropout"
 
     # Model Configuration
-    MODEL_PATH: str = str(Path(__file__).parent / "models/model.pkl")
+    MODEL_PATH: str = str(Path(__file__).parent / "models/model_4.pkl")
     PREPROCESSOR_PATH: str = str(Path(__file__).parent / "models/preprocessor.pkl")
 
     # Application Settings
