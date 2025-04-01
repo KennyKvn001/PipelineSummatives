@@ -7,6 +7,7 @@ from .db import (
     upload_training_data,
     get_new_training_data,
     mark_data_as_processed,
+    db,
 )
 from app.schema import StudentInput, PredictionOutput
 from app.scripts.model import DropoutModel
@@ -86,3 +87,15 @@ async def retrain_model():
         await mark_data_as_processed(new_data)
     except Exception as e:
         logging.error(f"Retraining failed: {str(e)}")
+
+
+@app.get("/health/mongodb")
+async def check_mongodb_connection():
+    try:
+        # Ping the database
+        await db.command("ping")
+        return {"status": "connected", "message": "Successfully connected to MongoDB"}
+    except Exception as e:
+        raise HTTPException(
+            status_code=503, detail=f"MongoDB connection failed: {str(e)}"
+        )
