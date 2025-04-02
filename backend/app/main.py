@@ -48,6 +48,7 @@ async def shutdown():
 # API Endpoints
 @app.post("/predict", response_model=PredictionOutput)
 async def predict(student_data: StudentInput):
+    logging.debug(f"Received request: {student_data.dict()}")
     try:
         return DropoutPredictor().predict(student_data)
     except Exception as e:

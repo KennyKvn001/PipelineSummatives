@@ -1,4 +1,3 @@
-
 import axios, { AxiosError } from "axios";
 import { PredictionInput, PredictionResponse, ApiError, TrainingHistoryEntry } from "@/types/api-types";
 
@@ -14,12 +13,28 @@ export const apiService = {
   // Prediction endpoint
   async predict(input: PredictionInput): Promise<PredictionResponse> {
     try {
-      const response = await api.post<PredictionResponse>("/predict", input);
+      // Create properly formatted input ensuring numeric fields are actually numbers
+      const formattedInput = {
+        ...input,
+        Curricular_units_2nd_sem_approved: parseFloat(String(input.Curricular_units_2nd_sem_approved)),
+        Curricular_units_2nd_sem_grade: parseFloat(String(input.Curricular_units_2nd_sem_grade)),
+        Age_at_enrollment: parseFloat(String(input.Age_at_enrollment)),
+        Tuition_fees_up_to_date: Number(input.Tuition_fees_up_to_date),
+        Scholarship_holder: Number(input.Scholarship_holder),
+        Debtor: Number(input.Debtor)
+      };
+      
+      console.log("Sending request data:", JSON.stringify(formattedInput, null, 2));
+      const response = await api.post<PredictionResponse>("/predict", formattedInput);
       return response.data;
     } catch (error) {
       const axiosError = error as AxiosError<ApiError>;
       if (axiosError.response?.data) {
-        throw new Error(axiosError.response.data.detail || "Error making prediction");
+        // Extract and format the error message properly
+        const errorDetail = typeof axiosError.response.data === 'object' && axiosError.response.data.detail
+          ? axiosError.response.data.detail
+          : JSON.stringify(axiosError.response.data);
+        throw new Error(errorDetail);
       }
       throw new Error("Network error occurred");
     }
@@ -40,7 +55,10 @@ export const apiService = {
     } catch (error) {
       const axiosError = error as AxiosError<ApiError>;
       if (axiosError.response?.data) {
-        throw new Error(axiosError.response.data.detail || "Error uploading data");
+        const errorDetail = typeof axiosError.response.data === 'object' && axiosError.response.data.detail
+          ? axiosError.response.data.detail
+          : JSON.stringify(axiosError.response.data);
+        throw new Error(errorDetail);
       }
       throw new Error("Network error occurred during file upload");
     }
@@ -57,7 +75,10 @@ export const apiService = {
     } catch (error) {
       const axiosError = error as AxiosError<ApiError>;
       if (axiosError.response?.data) {
-        throw new Error(axiosError.response.data.detail || "Error retraining model");
+        const errorDetail = typeof axiosError.response.data === 'object' && axiosError.response.data.detail
+          ? axiosError.response.data.detail
+          : JSON.stringify(axiosError.response.data);
+        throw new Error(errorDetail);
       }
       throw new Error("Network error occurred during model retraining");
     }

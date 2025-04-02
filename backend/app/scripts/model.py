@@ -44,15 +44,22 @@ class DropoutModel:
         }
         """
         try:
-            model_data = joblib.load(settings.MODEL_PATH)
+            loaded_data = joblib.load(settings.MODEL_PATH)
 
-            if not all(k in model_data for k in ["model", "preprocessor"]):
-                raise ValueError(
-                    "Invalid .pkl structure. Expected keys: 'model', 'preprocessor'"
-                )
+            # Check if it's already a Sequential model (not a dict)
+            if isinstance(loaded_data, Sequential):
+                self.model = loaded_data
+                self.preprocessor = None
+                logger.info("Loaded Sequential model successfully")
+            else:
+                # It's a dictionary with both model and preprocessor
+                if not all(k in loaded_data for k in ["model", "preprocessor"]):
+                    raise ValueError(
+                        "Invalid .pkl structure. Expected keys: 'model', 'preprocessor'"
+                    )
 
-            self.model = model_data["model"]
-            self.preprocessor = model_data["preprocessor"]
+                self.model = loaded_data["model"]
+                self.preprocessor = loaded_data["preprocessor"]
 
             logger.info("Pre-trained model loaded successfully")
 
@@ -69,17 +76,47 @@ class DropoutModel:
             {'probability': float, 'risk_level': str}
         """
         try:
+            # Check if model is loaded
+            if self.model is None:
+                raise ValueError("Model is not loaded. Call load_pretrained() first.")
+
             # Validate input
             if not set(self.feature_names).issubset(input_data.columns):
                 missing = set(self.feature_names) - set(input_data.columns)
                 raise ValueError(f"Missing features: {missing}")
 
-            # Preprocess
+            # Get features in the correct order
             X = input_data[self.feature_names].values
-            X_processed = self.preprocessor.transform(X)
 
-            # Predict
-            proba = float(self.model.predict(X_processed)[0][0])
+            # Apply preprocessing only if preprocessor exists
+            if self.preprocessor is not None:
+                X_processed = self.preprocessor.transform(X)
+            else:
+                # Assume data is already in the correct format for the model
+                X_processed = X
+
+            # Debug print
+            logger.info(f"Input shape: {X_processed.shape}")
+
+            # Predict with error checking
+            predictions = self.model.predict(X_processed)
+
+            # Debug print
+            logger.info(f"Prediction result type: {type(predictions)}")
+            logger.info(
+                f"Prediction result shape: {predictions.shape if hasattr(predictions, 'shape') else 'no shape'}"
+            )
+            logger.info(f"Prediction result: {predictions}")
+
+            # Safely extract probability value
+            if predictions is None:
+                raise ValueError("Model prediction returned None")
+
+            # Handle different prediction formats
+            if hasattr(predictions, "shape") and len(predictions.shape) > 1:
+                proba = float(predictions[0][0])
+            else:
+                proba = float(predictions[0])
 
             return {
                 "probability": proba,
@@ -90,7 +127,8 @@ class DropoutModel:
 
         except Exception as e:
             logger.error(f"Prediction failed: {str(e)}")
-            raise
+            # Re-raise with more context
+            raise ValueError(f"Prediction failed: {str(e)}")
 
     def retrain(self, new_data_path: str, epochs: int = 10) -> Dict[str, Any]:
         """

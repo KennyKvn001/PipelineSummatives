@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -19,11 +18,11 @@ const predictionSchema = z.object({
     .min(-2.9, { message: "Minimum value is -2.9" })
     .max(2.5, { message: "Maximum value is 2.5" }),
   Curricular_units_2nd_sem_grade: z.coerce.number(),
-  Tuition_fees_up_to_date: z.enum(["0", "1"]).transform(val => parseInt(val) as 0 | 1),
-  Scholarship_holder: z.enum(["0", "1"]).transform(val => parseInt(val) as 0 | 1),
+  Tuition_fees_up_to_date: z.enum(["0", "1"]).transform(val => parseInt(val)),
+  Scholarship_holder: z.enum(["0", "1"]).transform(val => parseInt(val)),
   Age_at_enrollment: z.coerce.number(),
-  Debtor: z.enum(["0", "1"]).transform(val => parseInt(val) as 0 | 1),
-  Gender: z.enum(["0", "1"]).transform(val => parseInt(val) as 0 | 1),
+  Debtor: z.enum(["0", "1"]).transform(val => parseInt(val)),
+  Gender: z.enum(["male", "female"]),
 });
 
 type PredictionFormValues = z.infer<typeof predictionSchema>;
@@ -41,7 +40,7 @@ const PredictionForm: React.FC = () => {
       Scholarship_holder: "0",
       Age_at_enrollment: 0,
       Debtor: "0",
-      Gender: "0",
+      Gender: "female",
     },
   });
 
@@ -242,13 +241,13 @@ const PredictionForm: React.FC = () => {
                       >
                         <FormItem className="flex items-center space-x-2 space-y-0">
                           <FormControl>
-                            <RadioGroupItem value="1" />
+                            <RadioGroupItem value="male" />
                           </FormControl>
                           <FormLabel className="font-normal">Male</FormLabel>
                         </FormItem>
                         <FormItem className="flex items-center space-x-2 space-y-0">
                           <FormControl>
-                            <RadioGroupItem value="0" />
+                            <RadioGroupItem value="female" />
                           </FormControl>
                           <FormLabel className="font-normal">Female</FormLabel>
                         </FormItem>

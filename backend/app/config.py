@@ -37,7 +37,7 @@ class Settings(BaseSettings):
 
     # API Settings
     ENABLE_CORS: bool = os.environ.get("ENABLE_CORS", "True").lower() == "true"
-    ALLOWED_ORIGINS: List[str] = ["http://localhost:3000"]  # Default for development
+    ALLOWED_ORIGINS: List[str] = ["http://localhost:8000"]
 
     def get_mongo_connection_options(self) -> dict:
         """Return all MongoDB connection options as a dictionary"""

@@ -10,7 +10,7 @@ class DropoutPredictor:
         self.load_model()
 
     def load_model(self):
-        self.model_data = dropout_model.load_pretrained
+        self.model_data = dropout_model.load_pretrained()
 
     def predict(self, student_data: StudentInput):
         """Make prediction for a single student"""
