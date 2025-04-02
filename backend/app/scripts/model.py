@@ -15,6 +15,7 @@ from sklearn.metrics import (
 from typing import Dict, Any
 import logging
 from app.config import settings
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -37,13 +38,15 @@ class DropoutModel:
     def load_pretrained(self) -> None:
         """
         Load pre-trained model from .pkl file
-        Expected .pkl format: {
-            'model': Keras Sequential model,
-            'preprocessor': sklearn preprocessor,
-            'metadata': dict (optional)
-        }
         """
         try:
+            # Check if model file exists
+            if not os.path.exists(settings.MODEL_PATH):
+                logger.warning(f"Model file not found at {settings.MODEL_PATH}")
+                raise FileNotFoundError(
+                    f"Model file not found at {settings.MODEL_PATH}"
+                )
+
             loaded_data = joblib.load(settings.MODEL_PATH)
 
             # Check if it's already a Sequential model (not a dict)
@@ -62,10 +65,14 @@ class DropoutModel:
                 self.preprocessor = loaded_data["preprocessor"]
 
             logger.info("Pre-trained model loaded successfully")
+            return loaded_data  # Return the loaded data for reference
 
+        except FileNotFoundError as e:
+            logger.error(f"Model file not found: {str(e)}")
+            raise
         except Exception as e:
             logger.error(f"Failed to load pre-trained model: {str(e)}")
-            raise RuntimeError("Model loading failed. Check logs for details.")
+            raise RuntimeError(f"Model loading failed: {str(e)}")
 
     def predict(self, input_data: pd.DataFrame) -> Dict[str, Any]:
         """

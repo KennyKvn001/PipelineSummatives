@@ -1,6 +1,7 @@
 from fastapi import FastAPI, UploadFile, File, BackgroundTasks, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from .scripts.prediction import DropoutPredictor
+from .transformation import transform_user_input
 from .db import (
     connect_to_mongo,
     close_mongo_connection,
@@ -9,7 +10,7 @@ from .db import (
     mark_data_as_processed,
     db,
 )
-from app.schema import StudentInput, PredictionOutput
+from app.schema import StudentInput, PredictionOutput, UserFriendlyInput
 from app.scripts.model import DropoutModel
 import pandas as pd
 import logging
@@ -55,6 +56,20 @@ async def predict(student_data: StudentInput):
         raise HTTPException(400, str(e))
 
 
+@app.post("/predict", response_model=PredictionOutput)
+async def predict(user_data: UserFriendlyInput):
+    logging.debug(f"Received user-friendly request: {user_data.dict()}")
+    try:
+        # Transform user input to model-ready format
+        model_input = transform_user_input(user_data)
+        logging.debug(f"Transformed to model input: {model_input.dict()}")
+
+        # Make prediction
+        return DropoutPredictor().predict(model_input)
+    except Exception as e:
+        raise HTTPException(400, str(e))
+
+
 @app.post("/upload-data")
 async def upload_data(file: UploadFile = File(...)):
     if not file.filename.endswith(".csv"):
@@ -71,8 +86,21 @@ async def upload_data(file: UploadFile = File(...)):
 
 @app.post("/retrain")
 async def retrain(background_tasks: BackgroundTasks):
-    background_tasks.add_task(retrain_model)
-    return {"message": "Retraining started in background"}
+    try:
+        # Check if there's new data to train on
+        new_data = await get_new_training_data()
+        if not new_data:
+            return {
+                "message": "No new data available for retraining",
+                "status": "skipped",
+            }
+
+        # Add the retraining task to background
+        background_tasks.add_task(retrain_model)
+        return {"message": "Retraining started in background", "status": "started"}
+    except Exception as e:
+        logging.error(f"Failed to initiate retraining: {str(e)}")
+        raise HTTPException(500, f"Failed to initiate retraining: {str(e)}")
 
 
 # Helper functions
@@ -80,12 +108,23 @@ async def retrain_model():
     try:
         new_data = await get_new_training_data()
         if not new_data:
+            logging.info("No new data to train on")
             return
 
         df = pd.DataFrame(new_data)
         model = DropoutModel()
+
+        # Log retraining details
+        logging.info(f"Starting retraining with {len(df)} new data points")
+
+        # Train the model
         model.train(df)
-        await mark_data_as_processed(new_data)
+
+        # Mark data as processed after successful training
+        processed_count = await mark_data_as_processed(new_data)
+        logging.info(
+            f"Retraining completed successfully. Processed {processed_count} records."
+        )
     except Exception as e:
         logging.error(f"Retraining failed: {str(e)}")
 

@@ -2,26 +2,31 @@ import React, { useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
-import { PredictionInput, PredictionResponse } from "@/types/api-types";
+import { UserFriendlyPredictionInput, PredictionResponse } from "@/types/api-types";
 import { apiService } from "@/services/api-service";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import RiskMeter from "./RiskMeter";
 
-// Form validation schema
+// Form validation schema with natural value ranges
 const predictionSchema = z.object({
   Curricular_units_2nd_sem_approved: z.coerce.number()
-    .min(-2.9, { message: "Minimum value is -2.9" })
-    .max(2.5, { message: "Maximum value is 2.5" }),
-  Curricular_units_2nd_sem_grade: z.coerce.number(),
-  Tuition_fees_up_to_date: z.enum(["0", "1"]).transform(val => parseInt(val)),
-  Scholarship_holder: z.enum(["0", "1"]).transform(val => parseInt(val)),
-  Age_at_enrollment: z.coerce.number(),
-  Debtor: z.enum(["0", "1"]).transform(val => parseInt(val)),
+    .min(0, { message: "Must be at least 0" })
+    .max(20, { message: "Maximum value is 20" }),
+  Curricular_units_2nd_sem_grade: z.coerce.number()
+    .min(0, { message: "Must be at least 0" })
+    .max(20, { message: "Maximum value is 20" }),
+  Tuition_fees_up_to_date: z.boolean(),
+  Scholarship_holder: z.boolean(),
+  Age_at_enrollment: z.coerce.number()
+    .min(17, { message: "Student must be at least 17 years old" })
+    .max(70, { message: "Student must be at most 70 years old" }),
+  Debtor: z.boolean(),
   Gender: z.enum(["male", "female"]),
 });
 
@@ -34,12 +39,12 @@ const PredictionForm: React.FC = () => {
   const form = useForm<PredictionFormValues>({
     resolver: zodResolver(predictionSchema),
     defaultValues: {
-      Curricular_units_2nd_sem_approved: 0,
-      Curricular_units_2nd_sem_grade: 0,
-      Tuition_fees_up_to_date: "1",
-      Scholarship_holder: "0",
-      Age_at_enrollment: 0,
-      Debtor: "0",
+      Curricular_units_2nd_sem_approved: 10,
+      Curricular_units_2nd_sem_grade: 12,
+      Tuition_fees_up_to_date: true,
+      Scholarship_holder: false,
+      Age_at_enrollment: 20,
+      Debtor: false,
       Gender: "female",
     },
   });
@@ -49,8 +54,8 @@ const PredictionForm: React.FC = () => {
     setPredictionResult(null);
     
     try {
-      // Transform the data to match the expected PredictionInput type
-      const predictionInput: PredictionInput = {
+      // Create user-friendly input object
+      const userInput: UserFriendlyPredictionInput = {
         Curricular_units_2nd_sem_approved: data.Curricular_units_2nd_sem_approved,
         Curricular_units_2nd_sem_grade: data.Curricular_units_2nd_sem_grade,
         Tuition_fees_up_to_date: data.Tuition_fees_up_to_date,
@@ -60,7 +65,7 @@ const PredictionForm: React.FC = () => {
         Gender: data.Gender,
       };
       
-      const result = await apiService.predict(predictionInput);
+      const result = await apiService.predict(userInput);
       setPredictionResult(result);
       toast.success("Prediction calculated successfully");
     } catch (error) {
@@ -90,10 +95,10 @@ const PredictionForm: React.FC = () => {
                   <FormItem>
                     <FormLabel>Curricular Units Approved (2nd Sem)</FormLabel>
                     <FormControl>
-                      <Input type="number" step="0.1" placeholder="-2.9 to 2.5" {...field} />
+                      <Input type="number" min="0" max="20" placeholder="0-20" {...field} />
                     </FormControl>
                     <FormDescription>
-                      Standardized value between -2.9 and 2.5
+                      Number of approved curriculum units (0-20)
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -107,10 +112,10 @@ const PredictionForm: React.FC = () => {
                   <FormItem>
                     <FormLabel>Curricular Units Grade (2nd Sem)</FormLabel>
                     <FormControl>
-                      <Input type="number" step="0.1" placeholder="Standardized value" {...field} />
+                      <Input type="number" step="0.1" min="0" max="20" placeholder="0-20" {...field} />
                     </FormControl>
                     <FormDescription>
-                      Standardized value
+                      Average grade (0-20 scale)
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -121,28 +126,19 @@ const PredictionForm: React.FC = () => {
                 control={form.control}
                 name="Tuition_fees_up_to_date"
                 render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Tuition Fees Up-to-Date?</FormLabel>
+                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
                     <FormControl>
-                      <RadioGroup
-                        onValueChange={field.onChange}
-                        defaultValue={field.value}
-                        className="flex space-x-4"
-                      >
-                        <FormItem className="flex items-center space-x-2 space-y-0">
-                          <FormControl>
-                            <RadioGroupItem value="1" />
-                          </FormControl>
-                          <FormLabel className="font-normal">Yes</FormLabel>
-                        </FormItem>
-                        <FormItem className="flex items-center space-x-2 space-y-0">
-                          <FormControl>
-                            <RadioGroupItem value="0" />
-                          </FormControl>
-                          <FormLabel className="font-normal">No</FormLabel>
-                        </FormItem>
-                      </RadioGroup>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
                     </FormControl>
+                    <div className="space-y-1 leading-none">
+                      <FormLabel>Tuition Fees Up-to-Date</FormLabel>
+                      <FormDescription>
+                        Is the student's tuition payment up to date?
+                      </FormDescription>
+                    </div>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -152,28 +148,19 @@ const PredictionForm: React.FC = () => {
                 control={form.control}
                 name="Scholarship_holder"
                 render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Scholarship Holder?</FormLabel>
+                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
                     <FormControl>
-                      <RadioGroup
-                        onValueChange={field.onChange}
-                        defaultValue={field.value}
-                        className="flex space-x-4"
-                      >
-                        <FormItem className="flex items-center space-x-2 space-y-0">
-                          <FormControl>
-                            <RadioGroupItem value="1" />
-                          </FormControl>
-                          <FormLabel className="font-normal">Yes</FormLabel>
-                        </FormItem>
-                        <FormItem className="flex items-center space-x-2 space-y-0">
-                          <FormControl>
-                            <RadioGroupItem value="0" />
-                          </FormControl>
-                          <FormLabel className="font-normal">No</FormLabel>
-                        </FormItem>
-                      </RadioGroup>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
                     </FormControl>
+                    <div className="space-y-1 leading-none">
+                      <FormLabel>Scholarship Holder</FormLabel>
+                      <FormDescription>
+                        Does the student have a scholarship?
+                      </FormDescription>
+                    </div>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -186,10 +173,10 @@ const PredictionForm: React.FC = () => {
                   <FormItem>
                     <FormLabel>Age at Enrollment</FormLabel>
                     <FormControl>
-                      <Input type="number" step="0.1" placeholder="Standardized value" {...field} />
+                      <Input type="number" min="17" max="70" placeholder="17-70" {...field} />
                     </FormControl>
                     <FormDescription>
-                      Standardized value
+                      Student's age when they enrolled (17-70)
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -200,28 +187,19 @@ const PredictionForm: React.FC = () => {
                 control={form.control}
                 name="Debtor"
                 render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Is Debtor?</FormLabel>
+                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
                     <FormControl>
-                      <RadioGroup
-                        onValueChange={field.onChange}
-                        defaultValue={field.value}
-                        className="flex space-x-4"
-                      >
-                        <FormItem className="flex items-center space-x-2 space-y-0">
-                          <FormControl>
-                            <RadioGroupItem value="1" />
-                          </FormControl>
-                          <FormLabel className="font-normal">Yes</FormLabel>
-                        </FormItem>
-                        <FormItem className="flex items-center space-x-2 space-y-0">
-                          <FormControl>
-                            <RadioGroupItem value="0" />
-                          </FormControl>
-                          <FormLabel className="font-normal">No</FormLabel>
-                        </FormItem>
-                      </RadioGroup>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
                     </FormControl>
+                    <div className="space-y-1 leading-none">
+                      <FormLabel>Debtor</FormLabel>
+                      <FormDescription>
+                        Is the student a debtor?
+                      </FormDescription>
+                    </div>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -276,16 +254,19 @@ const PredictionForm: React.FC = () => {
         <CardContent className="flex flex-col items-center justify-center">
           {predictionResult ? (
             <>
-              <RiskMeter probability={predictionResult.probability} riskLevel={predictionResult.risk_level} />
+              <RiskMeter 
+                probability={predictionResult.probability} 
+                riskLevel={predictionResult.risk_level} 
+              />
               <div className="text-center mt-6">
                 <p className="text-xl font-medium mb-1">
                   Dropout Risk: 
                   <span 
                     className={`ml-2 font-bold ${
                       predictionResult.risk_level === "high" 
-                        ? "text-risk-high" 
+                        ? "text-red-600" 
                         : predictionResult.risk_level === "medium" 
-                        ? "text-risk-medium" 
+                        ? "text-orange-500" 
                         : "text-green-600"
                     }`}
                   >

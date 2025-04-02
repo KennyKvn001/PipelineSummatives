@@ -10,6 +10,16 @@ export interface PredictionInput {
   Gender: 0 | 1;
 }
 
+export interface UserFriendlyPredictionInput {
+  Curricular_units_2nd_sem_approved: number;
+  Curricular_units_2nd_sem_grade: number;
+  Tuition_fees_up_to_date: boolean;
+  Scholarship_holder: boolean;
+  Age_at_enrollment: number;
+  Debtor: boolean;
+  Gender: string;
+}
+
 // Response interface from prediction endpoint
 export interface PredictionResponse {
   probability: number;

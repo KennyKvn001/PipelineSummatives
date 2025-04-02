@@ -8,12 +8,11 @@ class Settings(BaseSettings):
     # MongoDB Configuration
     MONGODB_URI: str = os.environ.get(
         "MONGODB_URI",
-        "mongodb://localhost:27017",  # Default to local MongoDB if not specified
+        "mongodb://localhost:27017",
     )
     MONGO_DB: str = os.environ.get("MONGO_DB", "student_dropout")
-    MONGO_CONNECT_TIMEOUT_MS: int = 5000  # Connection timeout in milliseconds
-    MONGO_MAX_POOL_SIZE: int = 10  # Maximum number of connections in the pool
-    MONGO_RETRY_WRITES: bool = True  # Enable retry on write operations
+    MONGO_CONNECT_TIMEOUT_MS: int = 5000
+    MONGO_MAX_POOL_SIZE: int = 10
 
     # Data Validation
     TRAINING_DATA_FIELDS: List[str] = [
@@ -44,7 +43,6 @@ class Settings(BaseSettings):
         return {
             "serverSelectionTimeoutMS": self.MONGO_CONNECT_TIMEOUT_MS,
             "maxPoolSize": self.MONGO_MAX_POOL_SIZE,
-            "retryWrites": self.MONGO_RETRY_WRITES,
         }
 
     class Config:

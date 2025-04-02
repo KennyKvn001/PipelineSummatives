@@ -24,9 +24,13 @@ async def connect_to_mongo():
         logger.info(f"Connecting to MongoDB ({settings.ENVIRONMENT} environment)")
 
         # Create the client with all options
-        client = AsyncIOMotorClient(
-            settings.MONGODB_URI, tlsCAFile=certifi.where(), **connection_options
-        )
+        if settings.ENVIRONMENT == "production" and settings.MONGO_USE_TLS:
+            client = AsyncIOMotorClient(
+                settings.MONGODB_URI, tlsCAFile=certifi.where(), **connection_options
+            )
+        else:
+            # Connect without TLS for development
+            client = AsyncIOMotorClient(settings.MONGODB_URI, **connection_options)
 
         # Test connection with a ping command
         await client.admin.command("ping")
