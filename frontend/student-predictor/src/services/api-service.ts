@@ -35,7 +35,7 @@ const extractErrorMessage = (error: unknown): string => {
 
 export const apiService = {
   // Prediction endpoint
-  async predict(input: UserFriendlyPredictionInput): Promise<any> {
+  async predict(input: UserFriendlyPredictionInput): Promise<PredictionResponse> {
     try {
       // Create properly formatted input ensuring numeric fields are actually numbers
       const formattedInput = {
@@ -45,11 +45,22 @@ export const apiService = {
         Age_at_enrollment: Number(input.Age_at_enrollment),
         Tuition_fees_up_to_date: input.Tuition_fees_up_to_date ? 1 : 0,
         Scholarship_holder: input.Scholarship_holder ? 1 : 0,
-        Debtor: input.Debtor ? 1 : 0
+        Debtor: input.Debtor ? 1 : 0,
+        Gender: input.Gender === "male" ? 0 : 1 // Make sure gender is properly converted to 0/1
       };
 
-      const response = await api.post<PredictionResponse>("/predict", formattedInput);
-      return response.data;
+      const response = await api.post<any>("/predict", formattedInput);
+      
+      // Validate response data and map field names
+      // Backend returns dropout_probability but frontend expects probability
+      const validResponse: PredictionResponse = {
+        probability: typeof response.data.dropout_probability === 'number' && !isNaN(response.data.dropout_probability)
+          ? response.data.dropout_probability
+          : 0,
+        risk_level: response.data.risk_level || "low"
+      };
+      
+      return validResponse;
     } catch (error) {
         const axiosError = error as AxiosError<ApiError>;
         if (axiosError.response?.data) {

@@ -170,6 +170,59 @@ const RetrainingMonitor: React.FC = () => {
     }
   };
 
+  // render preprocessing progress
+  const renderProgressSteps = () => {
+    if (!retrainingStatus || retrainingStatus.status !== 'in_progress') return null;
+    
+    const currentStep = retrainingStatus.current_step || "uploading";
+    
+    return (
+      <div className="mt-4 mb-4">
+        <h3 className="text-sm font-medium mb-2">Progress:</h3>
+        <div className="flex items-center space-x-2">
+          {/* Step 1: Data Upload */}
+          <div className="flex flex-col items-center">
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center 
+              ${currentStep === "uploading" ? "bg-amber-500 text-white animate-pulse" : "bg-green-500 text-white"}`}>
+              1
+            </div>
+            <span className="text-xs mt-1">Upload</span>
+          </div>
+          
+          {/* Connector */}
+          <div className="w-8 h-1 bg-gray-300"></div>
+          
+          {/* Step 2: Preprocessing */}
+          <div className="flex flex-col items-center">
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center
+              ${currentStep === "preprocessing" ? "bg-amber-500 text-white animate-pulse" : 
+              (retrainingStatus.preprocessing_completed ? "bg-green-500 text-white" : "bg-gray-300 text-gray-600")}`}>
+              2
+            </div>
+            <span className="text-xs mt-1">Preprocess</span>
+          </div>
+          
+          {/* Connector */}
+          <div className="w-8 h-1 bg-gray-300"></div>
+          
+          {/* Step 3: Training */}
+          <div className="flex flex-col items-center">
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center
+              ${currentStep === "training" ? "bg-amber-500 text-white animate-pulse" : "bg-gray-300 text-gray-600"}`}>
+              3
+            </div>
+            <span className="text-xs mt-1">Train</span>
+          </div>
+        </div>
+        
+        {/* Current operation message */}
+        <div className="mt-2 text-sm text-gray-600">
+          {retrainingStatus.message || "Processing..."}
+        </div>
+      </div>
+    );
+  };
+
   // Render status indicator
   const renderStatusIndicator = () => {
     if (!retrainingStatus) {
@@ -370,6 +423,7 @@ const RetrainingMonitor: React.FC = () => {
                   </>
                 )}
               </Button>
+              {renderProgressSteps()} 
               {renderStatusIndicator()}
             </div>
             

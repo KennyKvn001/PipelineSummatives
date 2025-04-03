@@ -214,6 +214,25 @@ async def retrain_model_task():
         # Log data before preprocessing
         logging.info(f"Starting preprocessing of {len(df)} records")
 
+        # When starting preprocessing:
+        await update_retraining_status(
+            "in_progress",
+            {
+                "current_step": "preprocessing",
+                "message": f"Preprocessing {data_points} records...",
+            },
+        )
+
+        # After preprocessing completes:
+        await update_retraining_status(
+            "in_progress",
+            {
+                "current_step": "training",
+                "preprocessing_completed": True,
+                "message": f"Preprocessing complete. Now training model...",
+            },
+        )
+
         # Create preprocessor
         from app.scripts.preprocessing import DropoutPreprocessor
 
@@ -230,6 +249,7 @@ async def retrain_model_task():
             await update_retraining_status(
                 "in_progress",
                 {
+                    "current_step": "Training",
                     "preprocessing_completed": True,
                     "message": f"Preprocessing completed on {data_points} records",
                 },
