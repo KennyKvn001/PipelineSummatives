@@ -134,7 +134,7 @@ class DropoutPredictor:
         Returns:
             str: Risk level ("low", "medium", or "high")
         """
-        if probability < 0.3:
+        if probability < 0.4:
             return "low"
         elif probability < 0.7:
             return "medium"
