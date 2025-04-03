@@ -20,17 +20,13 @@ async def connect_to_mongo():
         # Get connection options from settings
         connection_options = settings.get_mongo_connection_options()
 
-        # Log connection attempt (without sensitive info)
+        # Log connection attempt
         logger.info(f"Connecting to MongoDB ({settings.ENVIRONMENT} environment)")
 
-        # Create the client with all options
-        if settings.ENVIRONMENT == "production" and settings.MONGO_USE_TLS:
-            client = AsyncIOMotorClient(
-                settings.MONGODB_URI, tlsCAFile=certifi.where(), **connection_options
-            )
-        else:
-            # Connect without TLS for development
-            client = AsyncIOMotorClient(settings.MONGODB_URI, **connection_options)
+        # MongoDB Atlas always requires TLS
+        client = AsyncIOMotorClient(
+            settings.MONGODB_URI, tlsCAFile=certifi.where(), **connection_options
+        )
 
         # Test connection with a ping command
         await client.admin.command("ping")
@@ -53,12 +49,17 @@ async def connect_to_mongo():
         )
         logger.info(f"Using database: {settings.MONGO_DB}")
 
+        # Return True to indicate successful connection
+        return True
+
     except Exception as e:
         logger.error(f"Failed to connect to MongoDB: {str(e)}")
         if client:
             client.close()
             client = None
-        raise
+
+        # Return False to indicate failed connection (instead of raising)
+        return False
 
 
 async def close_mongo_connection():
@@ -116,11 +117,15 @@ async def upload_training_data(file_content: bytes):
 
 
 async def get_new_training_data():
-    collection = db["training_data"]
-    cursor = collection.find({"processed": False})
-    data = await cursor.to_list(length=None)
-    logger.info(f"Found {len(data)} unprocessed training records")
-    return data
+    try:
+        collection = db["training_data"]
+        cursor = collection.find({"processed": False})
+        data = await cursor.to_list(length=None)
+        logging.info(f"Found {len(data)} unprocessed training records")
+        return data
+    except Exception as e:
+        logging.error(f"Error fetching new training data: {str(e)}")
+        return []  # Return empty list instead of None
 
 
 async def mark_data_as_processed(data):
@@ -135,3 +140,35 @@ async def mark_data_as_processed(data):
     )
     logger.info(f"Marked {result.modified_count} records as processed")
     return result.modified_count
+
+
+async def save_training_metrics(metrics, timestamp=None):
+    """Save training metrics to database
+
+    Args:
+        metrics: Dictionary of training metrics
+        timestamp: Optional timestamp, defaults to current time
+
+    Returns:
+        ID of inserted document
+    """
+    if not timestamp:
+        timestamp = datetime.datetime.utcnow()
+
+    collection = db["training_metrics"]
+    document = {"metrics": metrics, "timestamp": timestamp}
+    result = await collection.insert_one(document)
+    logger.info(f"Saved training metrics with ID: {result.inserted_id}")
+    return result.inserted_id
+
+
+async def get_latest_training_metrics():
+    """Get the most recent training metrics
+
+    Returns:
+        Dictionary with metrics or None if no metrics exist
+    """
+    collection = db["training_metrics"]
+    result = await collection.find_one(sort=[("timestamp", -1)])
+
+    return result

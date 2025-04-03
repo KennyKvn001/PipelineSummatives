@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     MONGO_DB: str = os.environ.get("MONGO_DB", "student_dropout")
     MONGO_CONNECT_TIMEOUT_MS: int = 5000
     MONGO_MAX_POOL_SIZE: int = 10
+    MONGO_USE_TLS: bool = True
 
     # Data Validation
     TRAINING_DATA_FIELDS: List[str] = [

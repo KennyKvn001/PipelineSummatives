@@ -187,6 +187,117 @@ class DropoutModel:
             logger.error(f"Retraining failed: {str(e)}")
             raise
 
+    def train(self, df):
+        """
+        Train model with MongoDB data
+        Args:
+            df: DataFrame or list of dicts with training data
+        Returns:
+            Evaluation metrics
+        """
+        try:
+            # Ensure df is a DataFrame
+            if not isinstance(df, pd.DataFrame):
+                df = pd.DataFrame(df)
+
+            # If _id column exists (from MongoDB), drop it
+            if "_id" in df.columns:
+                df = df.drop("_id", axis=1)
+
+            # Convert boolean/string values to numeric if needed
+            for col in df.columns:
+                if col == "Gender" and df[col].dtype == "object":
+                    df[col] = df[col].apply(
+                        lambda x: 1 if str(x).lower() == "male" else 0
+                    )
+                elif df[col].dtype == "bool":
+                    df[col] = df[col].astype(int)
+                elif col == "dropout_status" and df[col].dtype == "object":
+                    df[col] = df[col].apply(
+                        lambda x: 1 if str(x).lower() in ["true", "1", "yes"] else 0
+                    )
+
+            # Ensure all feature columns exist
+            missing_cols = set(self.feature_names) - set(df.columns)
+            if missing_cols:
+                raise ValueError(f"Missing required columns: {missing_cols}")
+
+            # Log data info for debugging
+            logger.info(f"Training DataFrame info: {df.columns.tolist()}")
+            logger.info(f"Data types: {df.dtypes.to_dict()}")
+
+            # Prepare data
+            X = df[self.feature_names]
+            y = df["dropout_status"].astype(int)
+
+            # Create preprocessor if not exists
+            if self.preprocessor is None:
+                from app.scripts.preprocessing import DropoutPreprocessor
+
+                self.preprocessor = DropoutPreprocessor()
+                self.preprocessor.fit(X)
+
+            # Preprocess data
+            X_processed = self.preprocessor.transform(X)
+
+            # Split data
+            X_train, X_test, y_train, y_test = train_test_split(
+                X_processed, y, test_size=0.2, random_state=42
+            )
+
+            # Initialize model if None
+            if self.model is None:
+                from tensorflow.keras.layers import Dense, Dropout
+                from tensorflow.keras.models import Sequential
+
+                self.model = Sequential(
+                    [
+                        Dense(
+                            64, activation="relu", input_shape=(X_processed.shape[1],)
+                        ),
+                        Dropout(0.2),
+                        Dense(32, activation="relu"),
+                        Dropout(0.2),
+                        Dense(1, activation="sigmoid"),
+                    ]
+                )
+
+                self.model.compile(
+                    optimizer=Adam(learning_rate=0.001),
+                    loss="binary_crossentropy",
+                    metrics=["accuracy"],
+                )
+
+            # Train the model
+            history = self.model.fit(
+                X_train,
+                y_train,
+                epochs=10,
+                batch_size=32,
+                validation_data=(X_test, y_test),
+                verbose=1,
+            )
+
+            # Evaluate
+            metrics = self._evaluate(X_test, y_test)
+
+            # Add training history to metrics
+            metrics["history"] = {
+                "loss": [float(val) for val in history.history["loss"]],
+                "accuracy": [float(val) for val in history.history["accuracy"]],
+                "val_loss": [float(val) for val in history.history["val_loss"]],
+                "val_accuracy": [float(val) for val in history.history["val_accuracy"]],
+            }
+
+            # Save updated model
+            self._save()
+
+            return metrics
+
+        except Exception as e:
+            logger.error(f"Training failed: {str(e)}")
+            raise
+
     def _evaluate(self, X_test: np.ndarray, y_test: np.ndarray) -> Dict[str, Any]:
         """Internal evaluation method"""
         y_pred = (self.model.predict(X_test) > 0.5).astype(int)

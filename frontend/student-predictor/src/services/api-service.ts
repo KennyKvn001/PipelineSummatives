@@ -11,7 +11,7 @@ const api = axios.create({
 
 export const apiService = {
   // Prediction endpoint
-  async predict(input: UserFriendlyPredictionInput): Promise<UserFriendlyPredictionInput> {
+  async predict(input: UserFriendlyPredictionInput): Promise<any> {
     try {
       // Create properly formatted input ensuring numeric fields are actually numbers
       const formattedInput = {
@@ -19,12 +19,12 @@ export const apiService = {
         Curricular_units_2nd_sem_approved: Number(input.Curricular_units_2nd_sem_approved),
         Curricular_units_2nd_sem_grade: Number(input.Curricular_units_2nd_sem_grade),
         Age_at_enrollment: Number(input.Age_at_enrollment),
-        Tuition_fees_up_to_date: Number(input.Tuition_fees_up_to_date),
-        Scholarship_holder: Number(input.Scholarship_holder),
-        Debtor: Number(input.Debtor)
+        Tuition_fees_up_to_date: input.Tuition_fees_up_to_date ? 1 : 0,
+        Scholarship_holder: input.Scholarship_holder ? 1 : 0,
+        Debtor: input.Debtor ? 1 : 0
       };
 
-      const response = await api.post<UserFriendlyPredictionInput>("/predict", formattedInput);
+      const response = await api.post<PredictionResponse>("/predict", formattedInput);
       return response.data;
     } catch (error) {
         const axiosError = error as AxiosError<ApiError>;
@@ -89,6 +89,50 @@ export const apiService = {
         throw new Error(errorDetail);
       }
       throw new Error("Network error occurred during model retraining");
+    }
+  },
+
+  // Get retraining status
+  async getRetrainingStatus(): Promise<any> {
+    try {
+      const response = await api.get("/retraining-status");
+      return response.data;
+    } catch (error) {
+      // If backend endpoint is not yet implemented, return a mock "not_started" response
+      if ((error as AxiosError).response?.status === 404) {
+        return { status: "not_started" };
+      }
+      
+      const axiosError = error as AxiosError<ApiError>;
+      if (axiosError.response?.data) {
+        const errorDetail = typeof axiosError.response.data === 'object' && axiosError.response.data.detail
+          ? axiosError.response.data.detail
+          : JSON.stringify(axiosError.response.data);
+        throw new Error(errorDetail);
+      }
+      throw new Error("Failed to fetch retraining status");
+    }
+  },
+
+  // Get latest training metrics
+  async getTrainingMetrics(): Promise<any> {
+    try {
+      const response = await api.get("/training-metrics");
+      return response.data;
+    } catch (error) {
+      // If backend endpoint is not yet implemented, return a mock empty response
+      if ((error as AxiosError).response?.status === 404) {
+        return { message: "No training metrics available yet" };
+      }
+      
+      const axiosError = error as AxiosError<ApiError>;
+      if (axiosError.response?.data) {
+        const errorDetail = typeof axiosError.response.data === 'object' && axiosError.response.data.detail
+          ? axiosError.response.data.detail
+          : JSON.stringify(axiosError.response.data);
+        throw new Error(errorDetail);
+      }
+      throw new Error("Failed to fetch training metrics");
     }
   },
 
