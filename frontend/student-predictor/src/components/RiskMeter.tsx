@@ -1,4 +1,3 @@
-
 import React from "react";
 
 interface RiskMeterProps {
@@ -7,25 +6,33 @@ interface RiskMeterProps {
 }
 
 const RiskMeter: React.FC<RiskMeterProps> = ({ probability, riskLevel }) => {
+  // Ensure probability is a valid number
+  const validProbability = typeof probability === 'number' && !isNaN(probability) 
+    ? probability 
+    : 0;
+  
   // Convert probability to percentage for display
-  const percentage = Math.round(probability * 100);
+  const percentage = Math.round(validProbability * 100);
   
   // Calculate rotation angle based on probability (0 to 180 degrees)
-  const rotationAngle = 180 * probability;
+  const rotationAngle = 180 * validProbability;
   
   // Determine color based on risk level
   const getRiskColor = (riskLevel: "low" | "medium" | "high") => {
     switch (riskLevel) {
       case "low":
-        return "#F2FCE2";
+        return "#4ade80"; // Green
       case "medium":
-        return "#F97316";
+        return "#F97316"; // Orange
       case "high":
-        return "#ea384c";
+        return "#ea384c"; // Red
       default:
-        return "#F2FCE2";
+        return "#4ade80"; // Default to green
     }
   };
+  
+  // Log the values to help debug
+  console.log("Current probability:", validProbability, "Risk level:", riskLevel);
 
   const color = getRiskColor(riskLevel);
   

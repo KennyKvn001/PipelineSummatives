@@ -210,13 +210,72 @@ async def retrain_model_task():
 
         # Convert to DataFrame for training
         df = pd.DataFrame(new_data)
+
+        # Log data before preprocessing
+        logging.info(f"Starting preprocessing of {len(df)} records")
+
+        # When starting preprocessing:
+        await update_retraining_status(
+            "in_progress",
+            {
+                "current_step": "preprocessing",
+                "message": f"Preprocessing {data_points} records...",
+            },
+        )
+
+        # After preprocessing completes:
+        await update_retraining_status(
+            "in_progress",
+            {
+                "current_step": "training",
+                "preprocessing_completed": True,
+                "message": f"Preprocessing complete. Now training model...",
+            },
+        )
+
+        # Create preprocessor
+        from app.scripts.preprocessing import DropoutPreprocessor
+
+        preprocessor = DropoutPreprocessor()
+
+        try:
+            # STEP 2: Preprocess the uploaded data
+            processed_df = preprocessor.preprocess_for_retraining(df)
+            logging.info(
+                f"Preprocessing completed successfully. Data shape: {processed_df.shape}"
+            )
+
+            # Update status to indicate preprocessing is complete
+            await update_retraining_status(
+                "in_progress",
+                {
+                    "current_step": "Training",
+                    "preprocessing_completed": True,
+                    "message": f"Preprocessing completed on {data_points} records",
+                },
+            )
+        except Exception as preprocess_error:
+            logging.error(f"Preprocessing failed: {str(preprocess_error)}")
+            await update_retraining_status(
+                "failed", {"error": f"Preprocessing failed: {str(preprocess_error)}"}
+            )
+            return
+
+        # Initialize the model
         model = DropoutModel()
 
-        # Log retraining details
-        logging.info(f"Starting retraining with {len(df)} new data points")
-
-        # Train the model and get metrics
-        metrics = model.train(df)
+        # STEP 3: Train the model with preprocessed data
+        try:
+            metrics = model.train(processed_df)
+            logging.info(
+                f"Model training completed successfully with metrics: {metrics}"
+            )
+        except Exception as training_error:
+            logging.error(f"Model training failed: {str(training_error)}")
+            await update_retraining_status(
+                "failed", {"error": f"Model training failed: {str(training_error)}"}
+            )
+            return
 
         # Add data size to metrics
         metrics["data_points"] = data_points
