@@ -10,8 +10,9 @@ from .db import (
     mark_data_as_processed,
     save_training_metrics,
     get_latest_training_metrics,
-    db,
-    client,
+    get_retraining_status,
+    update_retraining_status,
+    is_connected,
 )
 from app.schema import StudentInput, PredictionOutput, UserFriendlyInput
 from app.scripts.model import DropoutModel
@@ -19,6 +20,13 @@ import pandas as pd
 import logging
 from app.config import settings
 import datetime
+
+# Configure logging
+logging.basicConfig(
+    level=getattr(logging, settings.LOG_LEVEL),
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="Student Dropout Prediction API",
@@ -29,7 +37,8 @@ app = FastAPI(
 # Middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"] if settings.ENABLE_CORS else settings.ALLOWED_ORIGINS,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -49,6 +58,7 @@ async def startup():
 
     try:
         DropoutPredictor().load_model()
+        logging.info("Model loaded successfully.")
     except Exception as e:
         logging.warning(f"No trained model found or error loading model: {str(e)}")
 
@@ -56,20 +66,41 @@ async def startup():
 @app.on_event("shutdown")
 async def shutdown():
     await close_mongo_connection()
+    logging.info("Application shutdown: MongoDB connection closed.")
+
+
+# Helper function to check database connection
+async def ensure_db_connection():
+    """Ensure database connection is established"""
+    if not await is_connected():
+        connected = await connect_to_mongo()
+        if not connected:
+            raise HTTPException(503, "Database connection unavailable")
+        return connected
+    return True
 
 
 # API Endpoints
 @app.post("/predict", response_model=PredictionOutput)
-async def predict(student_data: StudentInput):
-    logging.debug(f"Received request: {student_data.dict()}")
+async def predict_raw(student_data: StudentInput):
+    """Raw prediction endpoint that accepts model-ready input format."""
+    # Ensure database connection
+    await ensure_db_connection()
+
+    logging.debug(f"Received raw prediction request: {student_data.dict()}")
     try:
         return DropoutPredictor().predict(student_data)
     except Exception as e:
+        logging.error(f"Prediction error: {str(e)}")
         raise HTTPException(400, str(e))
 
 
-@app.post("/predict", response_model=PredictionOutput)
-async def predict(user_data: UserFriendlyInput):
+@app.post("/predict/user", response_model=PredictionOutput)
+async def predict_user_friendly(user_data: UserFriendlyInput):
+    """User-friendly prediction endpoint with more intuitive input format."""
+    # Ensure database connection
+    await ensure_db_connection()
+
     logging.debug(f"Received user-friendly request: {user_data.dict()}")
     try:
         # Transform user input to model-ready format
@@ -79,70 +110,44 @@ async def predict(user_data: UserFriendlyInput):
         # Make prediction
         return DropoutPredictor().predict(model_input)
     except Exception as e:
+        logging.error(f"User-friendly prediction error: {str(e)}")
         raise HTTPException(400, str(e))
 
 
 @app.post("/upload-data")
-async def upload_data(file: UploadFile = File(...)):
-    if not file.filename.endswith(".csv"):
-        raise HTTPException(400, "Only CSV files accepted")
-    try:
-        contents = await file.read()
-        await upload_training_data(contents)
-        return {"message": "Data uploaded successfully"}
-    except Exception as e:
-        raise HTTPException(500, str(e))
-    finally:
-        await file.close()
+async def upload_data(
+    file: UploadFile = File(...),
+):
+    """Upload CSV training data."""
+    # Ensure database connection
+    await ensure_db_connection()
 
-
-async def ensure_db_connection():
-    """Ensure database connection is established before performing operations"""
-    global client, db
-
-    # If already connected, return True
-    if client is not None and db is not None:
-        try:
-            # Quick ping to check connection is still alive
-            await db.command("ping")
-            return True
-        except Exception:
-            # Connection was dropped, try to reconnect
-            pass
-
-    # Try to connect
-    return await connect_to_mongo()
-
-
-# Then modify your endpoint functions to use this:
-
-
-@app.post("/upload-data")
-async def upload_data(file: UploadFile = File(...)):
     if not file.filename.endswith(".csv"):
         raise HTTPException(400, "Only CSV files accepted")
 
-    # Ensure DB connection first
-    if not await ensure_db_connection():
-        raise HTTPException(503, "Database connection unavailable")
-
     try:
         contents = await file.read()
-        await upload_training_data(contents)
-        return {"message": "Data uploaded successfully"}
+        records_count = await upload_training_data(contents)
+        return {"message": "Data uploaded successfully", "records": records_count}
+    except ValueError as e:
+        # This is likely a validation error with the CSV
+        raise HTTPException(400, str(e))
     except Exception as e:
+        logging.error(f"File upload error: {str(e)}")
         raise HTTPException(500, str(e))
     finally:
         await file.close()
 
 
 @app.post("/retrain")
-async def retrain(background_tasks: BackgroundTasks):
-    try:
-        # Ensure DB connection first
-        if not await ensure_db_connection():
-            raise HTTPException(503, "Database connection unavailable")
+async def retrain(
+    background_tasks: BackgroundTasks,
+):
+    """Initiate model retraining process."""
+    # Ensure database connection
+    await ensure_db_connection()
 
+    try:
         # Check if there's new data to train on
         new_data = await get_new_training_data()
 
@@ -153,63 +158,57 @@ async def retrain(background_tasks: BackgroundTasks):
                 "status": "skipped",
             }
 
-        # Set a flag in database that retraining is in progress
-        try:
-            await db["status"].update_one(
-                {"_id": "retraining"},
-                {
-                    "$set": {
-                        "status": "in_progress",
-                        "started_at": datetime.datetime.utcnow(),
-                        "data_points": len(new_data) if new_data else 0,
-                    }
-                },
-                upsert=True,
-            )
-        except Exception as db_error:
-            logging.error(f"Error updating retraining status: {str(db_error)}")
-            # Continue anyway to try the retraining
+        # Update retraining status to in_progress
+        await update_retraining_status("in_progress", {"data_points": len(new_data)})
 
         # Add the retraining task to background
-        background_tasks.add_task(retrain_model)
+        background_tasks.add_task(retrain_model_task)
 
         return {
             "message": "Retraining started in background",
             "status": "started",
-            "data_points": len(new_data) if new_data else 0,
+            "data_points": len(new_data),
         }
     except Exception as e:
         logging.error(f"Failed to initiate retraining: {str(e)}")
+        # Update status to failed
+        await update_retraining_status("failed", {"error": str(e)})
         raise HTTPException(500, f"Failed to initiate retraining: {str(e)}")
 
 
 # Helper functions
-async def retrain_model():
-    """Background task for model retraining"""
+async def retrain_model_task():
+    """Background task for model retraining."""
     try:
-        # First check if db is available
-        if not db:
-            logging.error("Database not connected, cannot retrain")
-            return
+        # Ensure DB connection
+        if not await is_connected():
+            if not await connect_to_mongo():
+                logging.error("Database not connected, cannot retrain")
+                await update_retraining_status(
+                    "failed", {"error": "Database connection lost"}
+                )
+                return
 
         # Get new training data
         new_data = await get_new_training_data()
         if not new_data:
             logging.info("No new data to train on")
+            await update_retraining_status(
+                "completed", {"message": "No new data to train on"}
+            )
             return
 
-        # Set a flag in database that retraining is in progress
-        await db["status"].update_one(
-            {"_id": "retraining"},
+        # Update status to show retraining in progress
+        data_points = len(new_data)
+        await update_retraining_status(
+            "in_progress",
             {
-                "$set": {
-                    "status": "in_progress",
-                    "started_at": datetime.datetime.utcnow(),
-                }
+                "data_points": data_points,
+                "message": f"Training on {data_points} new records",
             },
-            upsert=True,
         )
 
+        # Convert to DataFrame for training
         df = pd.DataFrame(new_data)
         model = DropoutModel()
 
@@ -218,6 +217,9 @@ async def retrain_model():
 
         # Train the model and get metrics
         metrics = model.train(df)
+
+        # Add data size to metrics
+        metrics["data_points"] = data_points
 
         # Save training metrics to database
         await save_training_metrics(metrics)
@@ -229,72 +231,45 @@ async def retrain_model():
         )
 
         # Update status to complete
-        await db["status"].update_one(
-            {"_id": "retraining"},
-            {
-                "$set": {
-                    "status": "completed",
-                    "completed_at": datetime.datetime.utcnow(),
-                    "last_metrics": metrics,
-                }
-            },
+        await update_retraining_status(
+            "completed", {"last_metrics": metrics, "processed_records": processed_count}
         )
 
         return metrics
     except Exception as e:
         logging.error(f"Retraining failed: {str(e)}")
 
-        # Make sure db is available before trying to update status
-        if db is not None:
-            try:
-                await db["status"].update_one(
-                    {"_id": "retraining"},
-                    {
-                        "$set": {
-                            "status": "failed",
-                            "error": str(e),
-                            "failed_at": datetime.datetime.utcnow(),
-                        }
-                    },
-                    upsert=True,
-                )
-            except Exception as db_error:
-                # If updating the status fails, log that error too
-                logging.error(f"Failed to update retraining status: {str(db_error)}")
+        # Update status to failed
+        await update_retraining_status(
+            "failed",
+            {
+                "error": str(e),
+            },
+        )
+
+        return {"error": str(e)}
 
 
 @app.get("/retraining-status")
-async def get_retraining_status():
-    """Get the current status of model retraining"""
+async def get_retraining_info():
+    """Get the current status of model retraining."""
+    # Ensure database connection
+    await ensure_db_connection()
+
     try:
-        # First check if the database connection is established
-        if not db:
-            return {"status": "not_started", "message": "Database not connected"}
-
-        # Check if the collection exists
-        collections = await db.list_collection_names()
-        if "status" not in collections:
-            return {"status": "not_started"}
-
-        # Try to get the status document
-        status_doc = await db["status"].find_one({"_id": "retraining"})
-        if not status_doc:
-            return {"status": "not_started"}
-
-        # Convert ObjectId to string for JSON serialization
-        if "_id" in status_doc and not isinstance(status_doc["_id"], str):
-            status_doc["_id"] = str(status_doc["_id"])
-
+        status_doc = await get_retraining_status()
         return status_doc
     except Exception as e:
         logging.error(f"Failed to get retraining status: {str(e)}")
-        # Instead of raising an error, return a default status
-        return {"status": "not_started", "error": str(e)}
+        raise HTTPException(500, f"Failed to get retraining status: {str(e)}")
 
 
 @app.get("/training-metrics")
-async def get_training_metrics():
-    """Get the latest training metrics"""
+async def get_training_info():
+    """Get the latest training metrics."""
+    # Ensure database connection
+    await ensure_db_connection()
+
     try:
         metrics = await get_latest_training_metrics()
         if not metrics:
@@ -310,12 +285,30 @@ async def get_training_metrics():
         raise HTTPException(500, f"Failed to get training metrics: {str(e)}")
 
 
+@app.get("/health")
+async def health_check():
+    """Basic health check endpoint."""
+    return {"status": "ok"}
+
+
 @app.get("/health/mongodb")
 async def check_mongodb_connection():
+    """Check MongoDB connection health."""
     try:
-        # Ping the database
-        await db.command("ping")
-        return {"status": "connected", "message": "Successfully connected to MongoDB"}
+        if await is_connected():
+            return {
+                "status": "connected",
+                "message": "Successfully connected to MongoDB",
+            }
+        # Try to reconnect
+        if await connect_to_mongo():
+            return {
+                "status": "connected",
+                "message": "Successfully reconnected to MongoDB",
+            }
+        raise HTTPException(status_code=503, detail="MongoDB connection unavailable")
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=503, detail=f"MongoDB connection failed: {str(e)}"

@@ -127,7 +127,7 @@ const AdminDashboard: React.FC = () => {
             </CardContent>
           </Card>
 
-          <Card>
+          {/* <Card>
             <CardHeader>
               <CardTitle>Training History</CardTitle>
               <CardDescription>
@@ -168,7 +168,7 @@ const AdminDashboard: React.FC = () => {
                 </div>
               </div>
             </CardContent>
-          </Card>
+          </Card> */}
         </TabsContent>
         
         <TabsContent value="retrain">

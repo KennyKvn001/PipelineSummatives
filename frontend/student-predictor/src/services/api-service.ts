@@ -9,6 +9,30 @@ const api = axios.create({
   },
 });
 
+// Helper to extract error messages from API responses
+const extractErrorMessage = (error: unknown): string => {
+  const axiosError = error as AxiosError<ApiError>;
+  if (axiosError.response?.data) {
+    // Extract and format the error message properly
+    if (typeof axiosError.response.data === 'object' && axiosError.response.data.detail) {
+      return axiosError.response.data.detail;
+    } else if (typeof axiosError.response.data === 'string') {
+      return axiosError.response.data;
+    }
+  }
+  
+  if (axiosError.request) {
+    // Request was made but no response received
+    return "Network error: No response received from server";
+  }
+  
+  if (error instanceof Error) {
+    return error.message;
+  }
+  
+  return "An unknown error occurred";
+};
+
 export const apiService = {
   // Prediction endpoint
   async predict(input: UserFriendlyPredictionInput): Promise<any> {
@@ -59,7 +83,7 @@ export const apiService = {
           "Content-Type": "multipart/form-data",
         },
       });
-      return { success: true, message: "Data uploaded successfully" };
+      return { success: true, message: response.data.message || "Data uploaded successfully" };
     } catch (error) {
       const axiosError = error as AxiosError<ApiError>;
       if (axiosError.response?.data) {
@@ -135,6 +159,17 @@ export const apiService = {
       throw new Error("Failed to fetch training metrics");
     }
   },
+
+  // MongoDB health check
+  async checkMongoDBHealth(): Promise<boolean> {
+    try {
+      const response = await api.get("/health/mongodb");
+      return response.data.status === "connected";
+    } catch (error) {
+      return false;
+    }
+  },
+
 
   // Get training history (simulated for now)
   async getTrainingHistory(): Promise<TrainingHistoryEntry[]> {

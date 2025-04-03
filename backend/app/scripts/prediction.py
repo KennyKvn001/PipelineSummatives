@@ -15,6 +15,7 @@ class DropoutPredictor:
         self.load_model()
 
     def load_model(self):
+        """Load the prediction model from disk."""
         try:
             # Load the model
             loaded_model = dropout_model.load_pretrained()
@@ -30,39 +31,35 @@ class DropoutPredictor:
                 self.model_data["preprocessor"] = loaded_model["preprocessor"]
                 self.model_data["model"] = loaded_model["model"]
 
+            logger.info("Model loaded successfully")
             return self.model_data
         except Exception as e:
-            logging.error(f"Failed to load model: {str(e)}")
+            logger.error(f"Failed to load model: {str(e)}")
             return None
 
     def predict(self, student_data: StudentInput):
-        """Make prediction for a single student"""
+        """Make prediction for a single student.
+
+        Args:
+            student_data: Student input data
+
+        Returns:
+            dict: Prediction results with probability and risk level
+
+        Raises:
+            ValueError: If model is not loaded or prediction fails
+        """
         if not self.model_data:
             self.load_model()
 
         if not self.model_data or not self.model_data.get("model"):
             raise ValueError("Model could not be loaded")
 
-        input_df = pd.DataFrame([student_data.dict()])
-
-        # Apply preprocessing if available
-        if self.model_data.get("preprocessor"):
-            processed_input = self.model_data["preprocessor"].transform(input_df)
-        else:
-            processed_input = input_df.values
-
-        # Make prediction
-        model = self.model_data["model"]
-
         try:
-            logging.info(f"Received prediction request with data: {student_data}")
-            # Check if model is loaded
-            if not self.model_data:
-                self.load_model()
-                if not self.model_data:
-                    raise ValueError("Model could not be loaded")
+            # Log input data for debugging
+            logger.info(f"Received prediction request with data: {student_data}")
 
-            # Convert input to DataFrame and ensure all values are numeric
+            # Convert input to DataFrame
             input_dict = student_data.dict()
 
             # Explicitly convert values to ensure they're numeric
@@ -83,9 +80,9 @@ class DropoutPredictor:
             # Create DataFrame with the processed values
             input_df = pd.DataFrame([input_dict])
 
-            # Print DataFrame info for debugging
-            print("Input DataFrame data types:")
-            print(input_df.dtypes)
+            # Log DataFrame info for debugging
+            logger.debug("Input DataFrame data types:")
+            logger.debug(input_df.dtypes)
 
             # Apply preprocessing if available
             if self.model_data.get("preprocessor"):
@@ -112,17 +109,31 @@ class DropoutPredictor:
                     else prediction[0]
                 )
 
-            return {
+            # Ensure probability is between 0 and 1
+            proba = max(0.0, min(1.0, proba))
+
+            prediction_result = {
                 "dropout_probability": proba,
                 "risk_level": self._get_risk_level(proba),
                 "model_version": "1.0",
             }
 
+            logger.info(f"Prediction result: {prediction_result}")
+            return prediction_result
+
         except Exception as e:
-            logging.error(f"Prediction error: {str(e)}")
+            logger.error(f"Prediction error: {str(e)}")
             raise ValueError(f"Failed to make prediction: {str(e)}")
 
     def _get_risk_level(self, probability):
+        """Convert probability to risk level.
+
+        Args:
+            probability: Dropout probability (0-1)
+
+        Returns:
+            str: Risk level ("low", "medium", or "high")
+        """
         if probability < 0.3:
             return "low"
         elif probability < 0.7:
