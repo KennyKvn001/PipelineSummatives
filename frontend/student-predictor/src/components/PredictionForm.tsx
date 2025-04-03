@@ -66,7 +66,16 @@ const PredictionForm: React.FC = () => {
       };
       
       const result = await apiService.predict(userInput);
-      setPredictionResult(result);
+      
+      // Validate the result to ensure the probability is a number
+      const validResult: PredictionResponse = {
+        probability: typeof result.probability === 'number' && !isNaN(result.probability) 
+          ? result.probability 
+          : 0,
+        risk_level: result.risk_level || "low"
+      };
+      
+      setPredictionResult(validResult);
       toast.success("Prediction calculated successfully");
     } catch (error) {
       console.error("Prediction error:", error);
@@ -274,7 +283,9 @@ const PredictionForm: React.FC = () => {
                   </span>
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  Probability: {(predictionResult.probability * 100).toFixed(1)}%
+                  Probability: {(typeof predictionResult.probability === 'number' && !isNaN(predictionResult.probability) 
+                    ? (predictionResult.probability * 100).toFixed(1) 
+                    : "0")}%
                 </p>
               </div>
             </>

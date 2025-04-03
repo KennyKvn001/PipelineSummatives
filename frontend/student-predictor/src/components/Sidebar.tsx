@@ -54,7 +54,7 @@ export const Sidebar = () => {
         {!collapsed && (
           <div className="bg-blue-50 text-blue-700 rounded-md p-3 text-xs">
             <p className="font-medium">Prediction Accuracy</p>
-            <p className="text-lg font-bold mt-1">91%</p>
+            <p className="text-lg font-bold mt-1">88%</p>
           </div>
         )}
       </div>
