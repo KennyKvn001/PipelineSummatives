@@ -1,11 +1,6 @@
-import asyncio
-from app.db import connect_to_mongo, is_connected
+import pandas as pd
 
-
-async def test_db_connection():
-    await connect_to_mongo()  # Ensure connection is established
-    connected = await is_connected()
-    print("Database connected:", connected)
-
-
-asyncio.run(test_db_connection())
+print(f"Pandas version: {pd.__version__}")
+print(f"DataFrame: {pd.DataFrame}")
+df = pd.DataFrame({"A": [1, 2, 3], "B": [4, 5, 6]})
+print(df)
