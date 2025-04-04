@@ -6,16 +6,32 @@ interface RiskMeterProps {
 }
 
 const RiskMeter: React.FC<RiskMeterProps> = ({ probability, riskLevel }) => {
-  // Ensure probability is a valid number
-  const validProbability = typeof probability === 'number' && !isNaN(probability) 
-    ? probability 
-    : 0;
+  // Ensure probability is a valid number between 0 and 1
+  const validProbability = Math.max(0, Math.min(1, 
+    typeof probability === 'number' && !isNaN(probability) 
+      ? probability 
+      : 0
+  ));
   
   // Convert probability to percentage for display
   const percentage = Math.round(validProbability * 100);
   
-  // Calculate rotation angle based on probability (0 to 180 degrees)
-  const rotationAngle = 180 * validProbability;
+  // Calculate rotation angle based on risk level and probability
+  const getRotationAngle = () => {
+    switch (riskLevel) {
+      case "low":
+        // Low risk: 0 to 60 degrees (left side)
+        return -90 + validProbability * 60;
+      case "medium":
+        // Medium risk: 60 to 120 degrees (middle)
+        return  -30 + (validProbability * 60);
+      case "high":
+        // High risk: 120 to 180 degrees (right side)
+        return 0 + (validProbability * 60);
+      default:
+        return 0;
+    }
+  };
   
   // Determine color based on risk level
   const getRiskColor = (riskLevel: "low" | "medium" | "high") => {
@@ -31,9 +47,7 @@ const RiskMeter: React.FC<RiskMeterProps> = ({ probability, riskLevel }) => {
     }
   };
   
-  // Log the values to help debug
-  console.log("Current probability:", validProbability, "Risk level:", riskLevel);
-
+  const rotationAngle = getRotationAngle();
   const color = getRiskColor(riskLevel);
   
   return (
@@ -48,8 +62,11 @@ const RiskMeter: React.FC<RiskMeterProps> = ({ probability, riskLevel }) => {
       
       {/* Needle */}
       <div 
-        className="absolute bottom-0 left-1/2 w-1 h-[95%] bg-gray-800 rounded origin-bottom"
-        style={{ transform: `translateX(-50%) rotate(${rotationAngle}deg)` }}
+        className="absolute bottom-0 left-1/2 w-1 h-[95%] bg-gray-800 rounded origin-bottom transition-transform duration-500 ease-in-out"
+        style={{ 
+          transform: `translateX(-50%) rotate(${rotationAngle}deg)`,
+          transformOrigin: 'bottom center'
+        }}
       />
       
       {/* Center pivot point */}
