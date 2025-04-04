@@ -1,46 +1,43 @@
 # Core Python dependencies
-absl-py==2.2.1
-annotated-types==0.7.0
-anyio==4.9.0
-astunparse==1.6.3
-certifi==2025.1.31
-charset-normalizer==3.4.1
-dnspython==2.7.0
+absl-py>=2.2.0
+annotated-types>=0.7.0
+anyio>=4.9.0
+astunparse>=1.6.3
+certifi>=2025.1.0
+charset-normalizer>=3.4.0
+dnspython>=2.7.0
 fastapi==0.95.2
-h5py==3.13.0
-idna==3.10
-keras==3.9.0
-markdown-it-py==3.0.0
-MarkupSafe==3.0.2
-motor==3.1.2
-numpy==2.1.3
-opt_einsum==3.4.0
+h5py>=3.13.0
+idna>=3.10
+keras>=3.9.0
+markdown-it-py>=3.0.0
+MarkupSafe>=3.0.2
+motor>=3.1.2
+numpy>=2.0.0,<3.0.0
+opt_einsum>=3.4.0
 packaging
-pandas==2.0.1
-pydantic==1.10.7
-pydantic-settings==1.2.0  # Compatible version that should avoid PyYAML issues
-pymongo==4.3.3
+pandas>=2.0.0,<3.0.0
+pydantic>=1.10.7,<2.0.0
+pymongo>=4.3.3
 python-dateutil
-python-dotenv==1.0.0
-pytz==2025.2
-PyYAML==6.0  # Specify a pre-built version to avoid build issues
-requests==2.32.3
-scipy==1.15.2
+python-dotenv>=1.0.0
+pytz>=2025.2
+requests>=2.32.0
+scipy>=1.15.2
 six
-sniffio==1.3.1
+sniffio>=1.3.1
 starlette==0.27.0
-tensorboard==2.19.0
-tensorflow==2.19.0
+tensorboard>=2.10.0
 typing_extensions
-tzdata==2025.2
-urllib3==2.3.0
+tzdata>=2025.2
+urllib3>=2.3.0
 uvicorn==0.22.0
 
 # Additional dependencies
-contourpy==1.3.1
-matplotlib==3.10.1
-scikit-learn==1.2.2
-seaborn==0.13.2
+contourpy>=1.3.1
+matplotlib>=3.10.1
+scikit-learn>=1.2.2
+seaborn>=0.13.2
 
 # Development and Jupyter dependencies
 debugpy
@@ -48,3 +45,6 @@ ipykernel
 ipython
 jupyter_client
 jupyter_core
+
+# Note: Remove tensorflow for now if installation fails
+# You may need to install it separately or via conda
